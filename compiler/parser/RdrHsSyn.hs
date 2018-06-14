@@ -804,7 +804,7 @@ to make setRdrNameSpace partial, so we just make an Unqual name instead. It
 really doesn't matter!
 -}
 
-checkTyVarsP :: SDoc -> SDoc -> Located RdrName -> [LHsType GhcPs]
+checkTyVarsP :: SDoc -> SDoc -> Located RdrName -> [LHsTypeArg GhcPs]
              -> P (LHsQTyVars GhcPs)
 -- Same as checkTyVars, but in the P monad
 checkTyVarsP pp_what equals_or_where tc tparms
@@ -818,7 +818,7 @@ eitherToP :: Either (SrcSpan, SDoc) a -> P a
 eitherToP (Left (loc, doc)) = parseErrorSDoc loc doc
 eitherToP (Right thing)     = return thing
 
-checkTyVars :: SDoc -> SDoc -> Located RdrName -> [LHsType GhcPs]
+checkTyVars :: SDoc -> SDoc -> Located RdrName -> [LHsTypeArg GhcPs]
             -> Either (SrcSpan, SDoc)
                       ( LHsQTyVars GhcPs  -- the synthesized type variables
                       , P () )            -- action which adds annotations
@@ -827,9 +827,15 @@ checkTyVars :: SDoc -> SDoc -> Located RdrName -> [LHsType GhcPs]
 -- We use the Either monad because it's also called (via 'mkATDefault') from
 -- "Convert".
 checkTyVars pp_what equals_or_where tc tparms
-  = do { (tvs, anns) <- fmap unzip $ mapM (chkParens []) tparms
+  = do { (tvs, anns) <- fmap unzip $ mapM check tparms
        ; return (mkHsQTvs tvs, sequence_ anns) }
   where
+    check (LHsTyApp ki@(L loc _)) = Left (loc,
+                                      vcat [ text "Unexpected type application" <+>
+                                            text "@" <> ppr ki
+                                          , text "In the" <+> pp_what <+>
+                                            ptext (sLit "declaration for") <+> quotes (ppr tc)])
+    check (LHsTANormal ty) = chkParens [] ty
         -- Keep around an action for adjusting the annotations of extra parens
     chkParens :: [AddAnn] -> LHsType GhcPs
               -> Either (SrcSpan, SDoc) (LHsTyVarBndr GhcPs, P ())
@@ -936,7 +942,7 @@ checkTyClHdr :: Bool               -- True  <=> class header
                                    -- False <=> type header
              -> LHsType GhcPs
              -> P (Located RdrName,      -- the head symbol (type or class name)
-                   [LHsType GhcPs],      -- parameters of head symbol
+                   [LHsTypeArg GhcPs],      -- parameters of head symbol
                    LexicalFixity,        -- the declaration is in infix format
                    [AddAnn]) -- API Annotation for HsParTy when stripping parens
 -- Well-formedness check and decomposition of type and class heads.
@@ -959,8 +965,8 @@ checkTyClHdr is_cls ty
     go _ (HsOpTy _ t1 ltc@(dL->L _ tc) t2) acc ann _fix
       | isRdrTc tc               = return (ltc, t1:t2:acc, Infix, ann)
     go l (HsParTy _ ty)    acc ann fix = goL ty acc (ann ++mkParensApiAnn l) fix
-    go _ (HsAppTy _ t1 t2) acc ann fix = goL t1 (t2:acc) ann fix
-
+    go _ (HsAppTy _ t1 t2) acc ann fix = goL t1 (LHsTANormal t2:acc) ann fix
+    go _ (HsAppKindTy _ ty ki) acc ann fix = goL ty (LHsTyApp ki:acc) ann fix
     go l (HsTupleTy _ HsBoxedOrConstraintTuple ts) [] ann fix
       = return (cL l (nameRdrName tup_name), ts, fix, ann)
       where
@@ -1029,6 +1035,7 @@ checkContext (dL->L l orig_t)
 checkNoDocs :: SDoc -> LHsType GhcPs -> P ()
 checkNoDocs msg ty = go ty
   where
+    go (dK->L _ (HsAppKindTy _ ty ki)) = go ty *> go ki
     go (dL->L _ (HsAppTy _ t1 t2)) = go t1 *> go t2
     go (dL->L l (HsDocTy _ t ds)) = parseErrorSDoc l $ hsep
                                   [ text "Unexpected haddock", quotes (ppr ds)
@@ -1366,6 +1373,7 @@ isFunLhs e = go e [] []
 
 -- | Either an operator or an operand.
 data TyEl = TyElOpr RdrName | TyElOpd (HsType GhcPs)
+          | TyElTypeApp (HsType GhcPs)
           | TyElTilde | TyElBang
           | TyElUnpackedness ([AddAnn], SourceText, SrcUnpackedness)
           | TyElDocPrev HsDocString
@@ -1373,6 +1381,7 @@ data TyEl = TyElOpr RdrName | TyElOpd (HsType GhcPs)
 instance Outputable TyEl where
   ppr (TyElOpr name) = ppr name
   ppr (TyElOpd ty) = ppr ty
+  ppr (TyElTypeApp ki) = text "@" <> ppr ki
   ppr TyElTilde = text "~"
   ppr TyElBang = text "!"
   ppr (TyElUnpackedness (_, _, unpk)) = ppr unpk
@@ -1479,6 +1488,7 @@ mergeOps all_xs = go (0 :: Int) [] id all_xs
       , let guess [] = True
             guess ((dL->L _ (TyElOpd _)):_) = False
             guess ((dL->L _ (TyElOpr _)):_) = True
+            guess ((dL->L _ (TyElTypeApp _)):_) = False
             guess ((dL->L _ (TyElTilde)):_) = True
             guess ((dL->L _ (TyElBang)):_) = True
             guess ((dL->L _ (TyElUnpackedness _)):_) = True
@@ -1525,9 +1535,18 @@ mergeOps all_xs = go (0 :: Int) [] id all_xs
     go _ _ _ _ = panic "mergeOps.go: Impossible Match"
                         -- due to #15884
 
-
+    mergeAcc :: [LHsTypeArg GhcPs] -> LHsType GhcPs
     mergeAcc [] = panic "mergeOps.mergeAcc: empty input"
-    mergeAcc (x:xs) = mkHsAppTys x xs
+    mergeAcc (LHsTyApp _:_)
+       = panic "Unexpected type application"
+    mergeAcc (LHsTANormal ty : xs) = go1 ty xs
+      where
+         go1 :: LHsType GhcPs -> [LHsTypeArg GhcPs] -> LHsType GhcPs
+         go1 lhs [] = lhs
+         go1 lhs (x:xs) = case x of
+           LHsTANormal ty -> go1 (mkHsAppTy lhs ty) xs
+           LHsTyApp ki -> go1 (mkHsAppKindTy lhs ki) xs
+
 
 
 {- Note [Impossible case in mergeOps clause [unpk]]
@@ -1675,13 +1694,19 @@ mergeDataCon
            , Maybe LHsDocString      -- docstring to go on the constructor
            )
 mergeDataCon all_xs =
-  do { (addAnns, a) <- eitherToP res
+  do { report_illegal_type_apps type_apps
+     ; (addAnns, a) <- eitherToP res
      ; addAnns
      ; return a }
   where
     -- We start by splitting off the trailing documentation comment,
     -- if any exists.
+
     (mTrailingDoc, all_xs') = pDocPrev all_xs
+
+    (apps, type_apps) = partitionWith go all_xs'
+       where go (L l (TyElTypeApp ki))  = Right (L l ki)
+             go other = Left other
 
     -- Determine whether the trailing documentation comment exists and is the
     -- only docstring in this constructor declaration.
@@ -1700,7 +1725,8 @@ mergeDataCon all_xs =
 
     -- The result of merging the list of reversed TyEl into a
     -- data constructor, along with [AddAnn].
-    res = goFirst all_xs'
+
+    res = goFirst apps
 
     -- Take the trailing docstring into account when interpreting
     -- the docstring near the constructor.
@@ -1754,13 +1780,13 @@ mergeDataCon all_xs =
     go _ _ _ _ = Left malformedErr
       where
         malformedErr =
-          ( foldr combineSrcSpans noSrcSpan (map getLoc all_xs')
+          ( foldr combineSrcSpans noSrcSpan (map getLoc apps)
           , text "Cannot parse data constructor" <+>
             text "in a data/newtype declaration:" $$
-            nest 2 (hsep . reverse $ map ppr all_xs'))
+            nest 2 (hsep . reverse $ map ppr apps))
 
     goInfix =
-      do { let xs0 = all_xs'
+      do { let xs0 = apps
          ; (rhs_t, rhs_addAnns, xs1) <- pInfixSide xs0 `orErr` malformedErr
          ; let (mOpDoc, xs2) = pDocPrev xs1
          ; (op, xs3) <- case xs2 of
@@ -1777,10 +1803,15 @@ mergeDataCon all_xs =
          ; return (addAnns, (op, InfixCon lhs rhs, mkConDoc mOpDoc)) }
       where
         malformedErr =
-          ( foldr combineSrcSpans noSrcSpan (map getLoc all_xs')
+          ( foldr combineSrcSpans noSrcSpan (map getLoc apps)
           , text "Cannot parse an infix data constructor" <+>
             text "in a data/newtype declaration:" $$
-            nest 2 (hsep . reverse $ map ppr all_xs'))
+            nest 2 (hsep . reverse $ map ppr apps))
+
+    report_illegal_type_apps :: [LHsType GhcPs] -> P ()
+    report_illegal_type_apps [] = return ()
+    report_illegal_type_apps (L loc lty : _)
+      = parseErrorSDoc loc (text "Unexpected type application:" <+> ppr lty)
 
 ---------------------------------------------------------------------------
 -- Check for monad comprehensions

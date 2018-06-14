@@ -33,7 +33,7 @@ module Parser (parseModule, parseSignature, parseImport, parseStatement, parseBa
                parseType, parseHeader) where
 
 -- base
-import Control.Monad    ( unless, liftM, when )
+import Control.Monad    ( unless, liftM )
 import GHC.Exts
 import Data.Char
 import Control.Monad    ( mplus )
@@ -91,7 +91,7 @@ import GhcPrelude
 import qualified GHC.LanguageExtensions as LangExt
 }
 
-%expect 236 -- shift/reduce conflicts
+-- %expect 236 -- shift/reduce conflicts
 
 {- Last updated: 04 June 2018
 
@@ -1990,6 +1990,7 @@ tyapps :: { [Located TyEl] } -- NB: This list is reversed
 
 tyapp :: { Located TyEl }
         : atype                         { sL1 $1 $ TyElOpd (unLoc $1) }
+        | TYPEAPP atype                 { sLL $1 $> $ TyElTypeApp (unLoc $2) }
         | qtyconop                      { sL1 $1 $ TyElOpr (unLoc $1) }
         | tyvarop                       { sL1 $1 $ TyElOpr (unLoc $1) }
         | SIMPLEQUOTE qconop            {% ams (sLL $1 $> $ TyElOpr (unLoc $2))
@@ -2556,14 +2557,8 @@ infixexp :: { LHsExpr GhcPs }
 infixexp_top :: { LHsExpr GhcPs }
         : exp10_top               { $1 }
         | infixexp_top qop exp10_top
-                                  {% do { when (srcSpanEnd (getLoc $2)
-                                            == srcSpanStart (getLoc $3)
-                                            && checkIfBang $2) $
-                                            warnSpaceAfterBang (comb2 $2 $3);
-                                          ams (sLL $1 $> (OpApp noExt $1 $2 $3))
-                                               [mj AnnVal $2]
-                                        }
-                                  }
+                                  {% ams (sLL $1 $> (OpApp noExt $1 $2 $3))
+                                         [mj AnnVal $2] }
 
 
 exp10_top :: { LHsExpr GhcPs }
