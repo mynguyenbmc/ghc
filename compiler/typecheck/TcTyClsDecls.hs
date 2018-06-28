@@ -1173,7 +1173,7 @@ we discarded the kind-checked types (eg RHSs of data type decls);
 note that kcTyClDecl returns ().  There are two reasons:
 
   * It's convenient, because we don't have to rebuild a
-    kinded HsDecl (a fairly elaborate type)
+    kinded HsDecl (afairly elaborate type)
 
   * It's necessary, because after kind-generalisation, the
     TyCons/Classes may now be kind-polymorphic, and hence need
@@ -1428,7 +1428,7 @@ tcDefaultAssocDecl fam_tc [dL->L loc (FamEqn { feqn_tycon = L _ tc_name
                  (wrongNumberOfParmsErr fam_arity)
 
        -- Typecheck RHS
-       ; let hs_pats = map hsLTyVarBndrToType exp_vars
+       ; let hs_pats = map (HsValArg . hsLTyVarBndrToType) exp_vars
 
           -- NB: Use tcFamTyPats, not bindTyClTyVars. The latter expects to get
           -- the LHsQTyVars used for declaring a tycon, but the names here
@@ -1736,7 +1736,10 @@ kcTyFamInstEqn tc_fam_tc
        ; checkTc (fam_name == eqn_tc_name)
                  (wrongTyFamName fam_name eqn_tc_name)
           -- this check reports an arity error instead of a kind error; easier for user
-       ; checkTc (hs_pats `lengthIs` vis_arity) $
+       ; let vis_pats = count is_vis hs_pats
+                          where is_vis (HsValArg _) = True
+                                is_vis _ = False
+       ; checkTc (vis_pats == vis_arity) $
                   wrongNumberOfParmsErr vis_arity
        ; discardResult $
          bindImplicitTKBndrs_Q_Tv imp_vars $
@@ -1777,7 +1780,10 @@ tcTyFamInstEqn fam_tc mb_clsinfo
        -- If we wait until validity checking, we'll get kind errors
        -- below when an arity error will be much easier to understand.
        ; let vis_arity = length (tyConVisibleTyVars fam_tc)
-       ; checkTc (hs_pats `lengthIs` vis_arity) $
+       ; let vis_pats = count is_vis hs_pats
+                          where is_vis (HsValArg _) = True
+                                is_vis _ = False
+       ; checkTc (vis_pats == vis_arity) $
          wrongNumberOfParmsErr vis_arity
 
        ; (qtvs, pats, rhs_ty) <- tcTyFamInstEqnGuts fam_tc mb_clsinfo
@@ -1947,7 +1953,10 @@ tcFamTyPats fam_tc hs_pats
 
        ; let fun_ty = mkTyConApp fam_tc []
 
-       ; (fam_app, res_kind) <- tcInferApps typeLevelMode lhs_fun fun_ty
+       ; (fam_app, res_kind) <- unsetWOptM Opt_WarnPartialTypeSignatures $
+                                setXOptM LangExt.PartialTypeSignatures $
+                                 -- see Note [Wildcards in visible kind application]
+                                tcInferApps typeLevelMode lhs_fun fun_ty
                                             fam_kind hs_pats
 
        ; traceTc "End tcFamTyPats }" $

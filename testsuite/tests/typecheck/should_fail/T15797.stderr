@@ -1,0 +1,14 @@
+
+T15797.hs:18:10: error:
+    • Illegal instance declaration for ‘Bæ a’
+        (All instance types must be of the form (T a1 ... an)
+         where a1 ... an are *distinct type variables*,
+         and each type variable appears at most once in the instance head.
+         Use FlexibleInstances if you want to disable this.)
+    • In the instance declaration for ‘Bæ @k (a :: k)’
+
+T15797.hs:25:9: error:
+    • Expecting two more arguments to ‘EQ @ob’
+      Expected a type, but ‘EQ @ob’ has kind ‘ob -> ob -> *’
+    • In the first argument of ‘Ríki’, namely ‘(EQ @ob)’
+      In the instance declaration for ‘Ríki (EQ @ob)’

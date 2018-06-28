@@ -20,9 +20,9 @@ ExtraConstraintsWildcardInExpressionSignature.hs:5:25: warning: [-Wpartial-type-
       Where: ‘a1’ is a rigid type variable bound by
                the inferred type of <expression> :: Eq a1 => a1 -> a1 -> Bool
                at ExtraConstraintsWildcardInExpressionSignature.hs:5:20-25
-    • In an expression type signature: _ => _
+    • In the type ‘_’
+      In an expression type signature: _ => _
       In the expression: (==) :: _ => _
-      In the expression: ((==) :: _ => _) x y
     • Relevant bindings include
         y :: a
           (bound at ExtraConstraintsWildcardInExpressionSignature.hs:5:7)
