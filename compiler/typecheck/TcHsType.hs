@@ -366,7 +366,7 @@ tcHsTypeApp wc_ty kind
                -- signature so we want to solve its equalities right now
                unsetWOptM Opt_WarnPartialTypeSignatures $
                setXOptM LangExt.PartialTypeSignatures $
-               -- see Note [Wildcards in visible kind application]
+               -- See Note [Wildcards in visible type application]
                tcWildCardBinders sig_wcs $ \ _ ->
                tcCheckLHsType hs_ty kind
        -- We must promote here. Ex:
@@ -379,6 +379,20 @@ tcHsTypeApp wc_ty kind
        ; checkValidType TypeAppCtxt ty
        ; return ty }
 tcHsTypeApp (XHsWildCardBndrs _) _ = panic "tcHsTypeApp"
+
+{- Note [Wildcards in visible type application]
+
+A HsWildCardBndrs's hswc_ext now only includes named wildcards, so any unnamed
+wildcards stay unchanged in hswc_body and when called in tcHsTypeApp, tcCheckLHsType
+will call emitWildCardHoleConstraints on them. However, this would trigger
+error/warning when an unnamed wildcard is passed in as a visible type argument,
+which we do not want because users should be able to not instantiate any type
+variable they don't want to without fuss. The solution is to switch the
+PartialTypeSignatures flags here to let the typechecker know that it's checking
+a '@_' and do not emit hole constraints on it.
+See related Note [Wildcards in visible kind application]
+
+-}
 
 {-
 ************************************************************************
@@ -844,10 +858,16 @@ x :: T @_ @Nat False n
 x = MkT
 
 So we should allow '@_' without emitting any hole constraints, and
-regardless of whether PartialTypeSignatures is enabled or not. The solution is to
-automatically turn on PartialTypeSignatures and turn off PartialTypeSignatures
-warnings when and only when a wildcard is being passed in as a visible
-kind argument, and never call emitWildCardHoleConstraints under these conditions.
+regardless of whether PartialTypeSignatures is enabled or not. But how would
+the typechecker know which '_' is being used in VKA and which is not when it
+calls emitWildCardHoleConstraints in tcHsPartialSigType on all HsWildCardBndrs?
+The solution then is to neither rename nor include unnamed wildcards in HsWildCardBndrs,
+but instead give every unnamed wildcard a fresh wild tyvar in tcWildCardOcc.
+And whenever we see a '@_', we automatically turn on PartialTypeSignatures and
+turn off hole constraint warnings, and never call emitWildCardHoleConstraints
+under these conditions.
+See related Note [Wildcards in visible type application].
+
 -}
 ---------------------------
 -- | Call 'tc_infer_hs_type' and check its result against an expected kind.

@@ -15,7 +15,8 @@
     functions can be found in `Language.Haskell.TH.Lib`. The type signature
     of `tySynEqn` has also changed from `[TypeQ] -> TypeQ -> TySynEqnQ` to
     `(Maybe [TyVarBndrQ]) -> TypeQ -> TypeQ -> TySynEqnQ`, for the same reason
-    as in `Language.Haskell.TH.Syntax` above.
+    as in `Language.Haskell.TH.Syntax` above. Consequently, `tySynInstD` also
+    changes from `Name -> TySynEqnQ -> DecQ` to `TySynEqnQ -> DecQ`.
 
   * Add `Lift` instances for `NonEmpty` and `Void`
 

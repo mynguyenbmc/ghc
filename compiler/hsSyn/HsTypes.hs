@@ -374,6 +374,7 @@ data HsWildCardBndrs pass thing
   = HsWC { hswc_ext :: XHsWC pass thing
                 -- after the renamer
                 -- Wild cards, only named
+                -- See Note [Wildcards in visible kind application]
 
          , hswc_body :: thing
                 -- Main payload (type or list of types)
