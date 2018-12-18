@@ -10,8 +10,7 @@ T12033.hs:12:22: warning: [-Wpartial-type-signatures (in -Wdefault)]
                the type signature for:
                  tripleStoreToRuleSet :: forall v. v -> v
                at T12033.hs:6:1-30
-    • In the type ‘_’
-      In the type signature: makeExpression :: _
+    • In the type signature: makeExpression :: _
       In an equation for ‘tripleStoreToRuleSet’:
           tripleStoreToRuleSet getAtom
             = makeTuple getAtom

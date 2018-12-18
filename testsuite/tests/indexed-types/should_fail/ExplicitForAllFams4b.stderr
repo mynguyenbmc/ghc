@@ -7,7 +7,7 @@ ExplicitForAllFams4b.hs:7:24: error:
 ExplicitForAllFams4b.hs:7:27: error:
     Conflicting family instance declarations:
       J [a] = Float -- Defined at ExplicitForAllFams4b.hs:7:27
-      J w = Maybe b -- Defined at ExplicitForAllFams4b.hs:8:27
+      J _ = Maybe b -- Defined at ExplicitForAllFams4b.hs:8:27
 
 ExplicitForAllFams4b.hs:8:22: error:
     • Type variable ‘b’ is mentioned in the RHS,
@@ -22,7 +22,7 @@ ExplicitForAllFams4b.hs:11:24: error:
 ExplicitForAllFams4b.hs:11:27: error:
     Conflicting family instance declarations:
       K (a, Bool) -- Defined at ExplicitForAllFams4b.hs:11:27
-      K w -- Defined at ExplicitForAllFams4b.hs:12:27
+      K _ -- Defined at ExplicitForAllFams4b.hs:12:27
 
 ExplicitForAllFams4b.hs:12:22: error:
     • Type variable ‘b’ is mentioned in the RHS,
@@ -37,7 +37,7 @@ ExplicitForAllFams4b.hs:15:27: error:
 ExplicitForAllFams4b.hs:15:30: error:
     Conflicting family instance declarations:
       L (a, Bool) -- Defined at ExplicitForAllFams4b.hs:15:30
-      L w -- Defined at ExplicitForAllFams4b.hs:16:30
+      L _ -- Defined at ExplicitForAllFams4b.hs:16:30
 
 ExplicitForAllFams4b.hs:16:25: error:
     • Type variable ‘b’ is mentioned in the RHS,

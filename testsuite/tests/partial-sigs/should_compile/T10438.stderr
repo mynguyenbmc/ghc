@@ -4,14 +4,22 @@ T10438.hs:7:22: warning: [-Wpartial-type-signatures (in -Wdefault)]
       Where: ‘p2’ is a rigid type variable bound by
                the inferred type of g :: p2 -> p2
                at T10438.hs:(6,9)-(8,21)
-    • In the type ‘_’
-      In the type signature: x :: _
+    • In the type signature: x :: _
       In an equation for ‘g’:
           g r
             = x
             where
                 x :: _
                 x = r
+      In an equation for ‘foo’:
+          foo f
+            = g
+            where
+                g r
+                  = x
+                  where
+                      x :: _
+                      x = r
     • Relevant bindings include
         r :: p2 (bound at T10438.hs:6:11)
         g :: p2 -> p2 (bound at T10438.hs:6:9)
