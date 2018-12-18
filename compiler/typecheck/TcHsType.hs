@@ -391,6 +391,7 @@ variable they don't want to without fuss. The solution is to switch the
 PartialTypeSignatures flags here to let the typechecker know that it's checking
 a '@_' and do not emit hole constraints on it.
 See related Note [Wildcards in visible kind application]
+and Note [The wildcard story for types] in HsTypes.hs
 
 -}
 
@@ -603,8 +604,9 @@ tc_infer_hs_type _    (XHsType (NHsCoreTy ty))
        ; return (ty, tcTypeKind ty) }
 
 tc_infer_hs_type _ (HsExplicitListTy _ _ tys)
-  | null tys
-  = return (mkTyConTy (promoteDataCon nilDataCon),
+  | null tys  -- this is so that we can use visible kind application with '[]
+              -- e.g ... '[] @Bool
+  = return (mkTyConTy promotedNilDataCon,
             mkSpecForAllTys [alphaTyVar] $ mkListTy alphaTy)
 
 tc_infer_hs_type mode other_ty
@@ -866,7 +868,8 @@ but instead give every unnamed wildcard a fresh wild tyvar in tcWildCardOcc.
 And whenever we see a '@_', we automatically turn on PartialTypeSignatures and
 turn off hole constraint warnings, and never call emitWildCardHoleConstraints
 under these conditions.
-See related Note [Wildcards in visible type application].
+See related Note [Wildcards in visible type application] here and
+Note [The wildcard story for types] in HsTypes.hs
 
 -}
 ---------------------------
@@ -980,8 +983,7 @@ tcInferApps mode orig_hs_ty fun_ty fun_ki orig_hs_args
       -- The function's kind has a binder. Is it visible or invisible?
     go n subst fun all_kindbinder@(ki_binder:ki_binders) inner_ki
        all_args@(arg:args)
-      | isInvisibleBinder ki_binder
-      , Specified == tyCoBinderArgFlag ki_binder
+      | Specified <- tyCoBinderArgFlag ki_binder
       , HsTypeArg ki <- arg
          -- Invisible and specified binder with visible kind argument
          = do { traceTc "tcInferApps (vis kind app)" (vcat [ ppr ki_binder, ppr ki
@@ -1001,7 +1003,7 @@ tcInferApps mode orig_hs_ty fun_ty fun_ki orig_hs_args
                        ki_binders inner_ki args }
 
       | isInvisibleBinder ki_binder
-          -- Instantiate if not specified
+          -- Instantiate if not specified or if there is no kind application
       = do { traceTc "tcInferApps (invis normal app)" (ppr ki_binder $$ ppr subst $$ ppr (tyCoBinderArgFlag ki_binder))
            ; (subst', arg') <- tcInstTyBinder Nothing subst ki_binder
            ; go n subst' (mkNakedAppTy fun arg')
@@ -1029,7 +1031,7 @@ tcInferApps mode orig_hs_ty fun_ty fun_ki orig_hs_args
                                 ; ty_app_err ki $ nakedSubstTy subst
                                              $ mkPiTys all_kindbinder inner_ki }
 
-           (HsArgPar _) -> go n subst fun all_kindbinder inner_ki args
+           (HsArgPar _) -> panic "tcInferApps"
 
        -- We've run out of known binders in the functions's kind.
     go n subst fun [] inner_ki all_args@(arg:args)
@@ -1090,7 +1092,9 @@ tcTyApp mode e
           -- NB: (IT4) of Note [The tcType invariant] ensures that fun_kind is zonked
        ; tcTyApps mode hs_fun_ty fun_ty fun_kind hs_args }
 --------------------------
--- Like checkExpectedKindX, but returns only the final type; convenient wrapper
+-- This instantiates invisible arguments for the type being checked if it must
+-- be saturated and is not yet saturated. It then calls and uses the result
+-- from checkExpectedKindX to build the final type
 -- Obeys Note [The tcType invariant]
 checkExpectedKind :: HasDebugCallStack
                   => SDoc   -- type we're checking (for printing)
@@ -1401,6 +1405,7 @@ Help functions for type applications
 addTypeCtxt :: LHsType GhcRn -> TcM a -> TcM a
         -- Wrap a context around only if we want to show that contexts.
         -- Omit invisible ones and ones user's won't grok
+addTypeCtxt (L _ (HsWildCardTy _)) thing = thing   -- "In the type '_'" just isn't helpful.
 addTypeCtxt (L _ ty) thing
   = addErrCtxt doc thing
   where
@@ -1564,7 +1569,7 @@ newWildTyVar
   = do { kind <- newMetaKindVar
        ; uniq <- newUnique
        ; details <- newMetaDetails TauTv
-       ; let name = mkSysTvName uniq (fsLit "w")
+       ; let name = mkSysTvName uniq (fsLit "_")
              tyvar = (mkTcTyVar name kind details)
        ; traceTc "newWildTyVar" (ppr tyvar)
        ; return tyvar }

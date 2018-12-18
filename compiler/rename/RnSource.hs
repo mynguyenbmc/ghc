@@ -888,12 +888,13 @@ is the same as
     type family F a b :: *
     type instance F Int b = Int
 
-This is implemented as follows: during renaming anonymous wild cards
-'_' are given freshly generated names. These names are collected after
-renaming (rnFamInstEqn) and used to make new type variables during
-type checking (tc_fam_ty_pats). One should not confuse these wild
-cards with the ones from partial type signatures. The latter generate
-fresh meta-variables whereas the former generate fresh skolems.
+This is implemented as follows: Unnamed wildcards remain unchanged after
+the renamer, and then given fresh meta-variables during typechecking, and
+it is handled pretty much the same way as the ones in partial type signatures.
+We however don't want to emit hole constraints on wildcards in family
+instances, so we turn on PartialTypeSignatures and turn off warning flag to
+let typechecker know this.
+See related Note [Wildcards in visible kind application] in TcHsType.hs
 
 Note [Unused type variables in family instances]
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~

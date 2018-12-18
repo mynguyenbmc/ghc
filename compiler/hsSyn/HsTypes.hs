@@ -210,9 +210,13 @@ Note carefully:
   Here _a is an ordinary forall'd binder, but (With NamedWildCards)
   _b is a named wildcard.  (See the comments in Trac #10982)
 
-* All wildcards, whether named or anonymous, are bound by the
-  HsWildCardBndrs construct, which wraps types that are allowed
-  to have wildcards.
+* Named wildcards are bound by the HsWildCardBndrs construct, which wraps
+  types that are allowed to have wildcards. Unnamed wildcards however are left
+  unchanged until typechecking, where we give them fresh wild tyavrs and
+  determine whether or not to emit hole constraints on each wildcard
+  (we don't if it's a visible type/kind argument or a type family pattern).
+  See related notes Note [Wildcards in visible kind application]
+  and Note [Wildcards in visible type application] in TcHsType.hs
 
 * After type checking is done, we report what types the wildcards
   got unified with.
@@ -1097,7 +1101,8 @@ hsTyGetAppHead_maybe = go
     go (L _ (HsParTy _ t))             = go t
     go (L _ (HsKindSig _ t _))         = go t
     go _                               = Nothing
-
+    
+-- Arguments in an expression/type after splitting
 data HsArg tm ty
   = HsValArg tm   -- Argument is an ordinary expression     (f arg)
   | HsTypeArg  ty -- Argument is a visible type application (f @ty)

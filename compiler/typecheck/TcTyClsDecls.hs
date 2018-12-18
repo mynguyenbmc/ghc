@@ -1173,7 +1173,7 @@ we discarded the kind-checked types (eg RHSs of data type decls);
 note that kcTyClDecl returns ().  There are two reasons:
 
   * It's convenient, because we don't have to rebuild a
-    kinded HsDecl (afairly elaborate type)
+    kinded HsDecl (a fairly elaborate type)
 
   * It's necessary, because after kind-generalisation, the
     TyCons/Classes may now be kind-polymorphic, and hence need
@@ -1955,7 +1955,8 @@ tcFamTyPats fam_tc hs_pats
 
        ; (fam_app, res_kind) <- unsetWOptM Opt_WarnPartialTypeSignatures $
                                 setXOptM LangExt.PartialTypeSignatures $
-                                 -- see Note [Wildcards in visible kind application]
+                                -- See Note [Wildcards in family instances] in
+                                -- RnSource.hs
                                 tcInferApps typeLevelMode lhs_fun fun_ty
                                             fam_kind hs_pats
 

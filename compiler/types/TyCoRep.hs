@@ -559,7 +559,7 @@ tyCoBinderArgFlag :: TyCoBinder -> ArgFlag
 tyCoBinderArgFlag (Named (Bndr _ flag)) = flag
 tyCoBinderArgFlag (Anon ty)
  | isPredTy ty = Inferred
- | otherwise = Specified
+ | otherwise = Required
 
 {- Note [TyCoBinders]
 ~~~~~~~~~~~~~~~~~~~
